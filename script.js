@@ -21,8 +21,23 @@ const sounds = {
 };
 
 function playSound(sound) {
-  sound.currentTime = 0;
-  sound.play().catch(() => {});
+    // Clone the audio node so it plays a fresh instance
+    const soundClone = sound.cloneNode();
+    
+    // Lower volume slightly to prevent blowing out speakers when sounds overlap
+    soundClone.volume = 0.6; 
+    
+    soundClone.play().catch((error) => {
+        // Silently handle autoplay policy blocking without breaking the game
+        console.warn("Audio playback prevented:", error);
+    });
+    
+    // Cleanup: Remove the node from memory once it finishes playing
+    soundClone.onended = () => {
+        if (typeof soundClone.remove === "function") {
+          soundClone.remove(); 
+        }
+    };
 }
 
 const confettiCanvas = document.getElementById("confettiCanvas");
