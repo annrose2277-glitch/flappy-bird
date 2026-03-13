@@ -50,17 +50,17 @@ birdOptions.forEach(option => {
 });
 
 /* ===============================
-   GAME CONSTANTS
+   GAME CONSTANTS (Time-based)
 =================================*/
 
-const BASE_GRAVITY = 0.25;
+const BASE_GRAVITY = 15; 
 let GRAVITY = BASE_GRAVITY;
-const FLAP = -5.5;
-const MAX_FALL_SPEED = 7;
+const FLAP = -350;
+const MAX_FALL_SPEED = 400;
 const PIPE_WIDTH = 50;
 const PIPE_GAP = 200;
 const MIN_PIPE_DISTANCE = 300;
-let currentPipeSpeed = 2;
+let currentPipeSpeed = 120; // Pixels per second
 const GRACE_PERIOD_MS = 2000;
 
 /* ===============================
@@ -82,6 +82,7 @@ let isGameOver = false;
 let isPaused = false;
 let animationId = null;
 let gameStartTime = 0;
+let lastTime = 0;
 let isDebugMode = false;
 
 /* ===============================
@@ -126,9 +127,10 @@ function drawBird() {
     setTimeout(() => (canvas.style.transform = "translateX(-2px)"), 50);
   }
 
+  // Visual rotation scaling
   const rotation = Math.min(
     Math.PI / 2,
-    Math.max(-Math.PI / 9, bird.velocity * 0.1)
+    Math.max(-Math.PI / 9, bird.velocity * 0.002)
   );
 
   ctx.rotate(rotation);
@@ -164,7 +166,7 @@ function drawPipes() {
    UPDATE GAME
 =================================*/
 
-function update() {
+function update(dt) {
   if (isGameOver || isPaused) return;
 
   if (Date.now() - gameStartTime < GRACE_PERIOD_MS) {
@@ -173,17 +175,17 @@ function update() {
     GRAVITY = BASE_GRAVITY;
   }
 
-  bird.velocity += GRAVITY;
+  bird.velocity += GRAVITY * dt * 60;
 
   if (bird.velocity > MAX_FALL_SPEED) {
     bird.velocity = MAX_FALL_SPEED;
   }
 
-  bird.y += bird.velocity;
+  bird.y += bird.velocity * dt;
 
-  currentPipeSpeed = 2 + Math.floor(score / 10) * 0.2;
+  currentPipeSpeed = 120 + Math.floor(score / 10) * 10;
 
-  pipes.forEach((pipe) => (pipe.x -= currentPipeSpeed));
+  pipes.forEach((pipe) => (pipe.x -= currentPipeSpeed * dt));
 
   pipes.forEach((pipe, index) => {
     if (!pipe.scored && bird.x > pipe.x + PIPE_WIDTH) {
@@ -204,7 +206,7 @@ function update() {
     createPipe();
   }
 
-  // OPTIMIZED COLLISION DETECTION: Circle-to-AABB
+  // COLLISION DETECTION: Circle-to-AABB
   const birdRadius = 20; 
   const birdCenterX = bird.x + bird.width / 2;
   const birdCenterY = bird.y + bird.height / 2;
@@ -275,8 +277,15 @@ function draw() {
    GAME LOOP
 =================================*/
 
-function gameLoop() {
-  update();
+function gameLoop(timestamp) {
+  if (!lastTime) lastTime = timestamp;
+  let dt = (timestamp - lastTime) / 1000;
+  lastTime = timestamp;
+
+  // Cap dt to prevent massive jumps
+  if (dt > 0.1) dt = 0.1;
+
+  update(dt);
   draw();
 
   if (!isGameOver) {
@@ -316,6 +325,7 @@ function prepareGame() {
   score = 0;
   isGameOver = false;
   isPaused = false;
+  lastTime = 0; // Reset Delta Time tracker
   canvas.style.display = "block";
   replayButton.style.display = "none";
   playButton.style.display = "none";
@@ -347,7 +357,7 @@ function startCountdown() {
       countdownDisplay.style.display = "none";
       gameStartTime = Date.now();
       playSound(sounds.start);
-      gameLoop();
+      requestAnimationFrame(gameLoop); // Use RAF to start the loop with a timestamp
     }
   }, 1000);
 }
@@ -453,12 +463,12 @@ function drawAdvancedBackground() {
 playButton.addEventListener("click", startCountdown);
 replayButton.addEventListener("click", () => {
   prepareGame();
-  gameLoop();
+  requestAnimationFrame(gameLoop);
 });
 gameOverReplay.addEventListener("click", () => {
   gameOverScreen.style.display = "none";
   prepareGame();
-  gameLoop();
+  requestAnimationFrame(gameLoop);
 });
 pauseButton.addEventListener("click", () => {
   isPaused = !isPaused;
@@ -503,9 +513,6 @@ window.addEventListener("keydown", (event) => {
   if (event.code === "KeyP" && !isGameOver) {
     isPaused = !isPaused;
     pauseButton.innerText = isPaused ? "RESUME" : "PAUSE";
-  }
-  if (event.code === "KeyD") {
-    isDebugMode = !isDebugMode;
   }
 });
 
